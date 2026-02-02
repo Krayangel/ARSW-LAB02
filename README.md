@@ -57,10 +57,24 @@ co.eci.snake
 ## Parte I — (Calentamiento) `wait/notify` en un programa multi-hilo
 
 1. Toma el programa [**PrimeFinder**](https://github.com/ARSW-ECI/wait-notify-excercise).
+
+  -> El programa se instalo correctamente y descargo como repositorio  
+
+  ![](img/parte_1_a.png)
+
 2. Modifícalo para que **cada _t_ milisegundos**:
    - Se **pausen** todos los hilos trabajadores.
+
+      Esto ocurre en la clase 'Control' dentro del hilo controlador que duerme TMILISECONDS, y luego, solicita la pausa, el Control es el único que decide cuándo pausar, por eso centraliza el tiempo y no los hilos trabajadores, al cumplirse el intervalo, el controlador cambia una condición compartida de paused = true protegida por un monitor común y fuerza a que los hilos trabajadores entren en espera.
+
    - Se **muestre** cuántos números primos se han encontrado.
+
+      Esto sucede en Control, justo después de pausar los hilos, el controlador recorre el arreglo de PrimeFinderThread y consulta el tamaño de la lista de primos encontrada por cada hilo, como los hilos ya están pausados, la lectura es consistente y no hay condiciones de carrera, la suma total se imprime antes de pedir ENTER.
+
    - El programa **espere ENTER** para **reanudar**.
+
+      Esto ocurre en Control, usando un Scanner o System.in.read(), el hilo controlador se bloquea esperando la entrada del usuario mientras los hilos trabajadores permanecen detenidos en wait(), no hay espera activa, el programa está completamente suspendido hasta que el usuario presiona ENTER.
+
 3. La sincronización debe usar **`synchronized`**, **`wait()`**, **`notify()` / `notifyAll()`** sobre el **mismo monitor** (sin _busy-waiting_).
 4. Entrega en el reporte de laboratorio **las observaciones y/o comentarios** explicando tu diseño de sincronización (qué lock, qué condición, cómo evitas _lost wakeups_).
 
@@ -73,10 +87,21 @@ co.eci.snake
 ### 1) Análisis de concurrencia
 
 - Explica **cómo** el código usa hilos para dar autonomía a cada serpiente.
+
+    El código usa hilos para dar autonomía a cada serpiente mediante la clase SnakeRunner del paquete concurrency, cada instancia corre en su propio hilo, lo que permite que el movimiento y decisiones de cada serpiente sean independientes del resto y del hilo principal, coordinándose solo con el GameClock, así, el paralelismo facilita simular múltiples entidades activas en el tablero de forma concurrente, mejorando la escalabilidad y claridad del diseño.
+
 - **Identifica** y documenta en **`el reporte de laboratorio`**:
   - Posibles **condiciones de carrera**.
+
+        Existen posibles condiciones de carrera en el acceso a estructuras compartidas como el tablero (Board) y el estado interno de cada serpiente (Snake), aunque cada serpiente es gestionada por su propio hilo estas pueden interactuar con recursos comunes, por ejemplo al consultar límites del tablero, posiciones ocupadas o al momento de renderizar el estado en la interfaz gráfica, además en la clase Snake el cuerpo no está protegido explícitamente por sincronización lo que puede generar inconsistencias si es leído por la UI o por otra parte del sistema mientras el hilo de la serpiente lo está modificando, el uso de volatile en la dirección mitiga parcialmente problemas de visibilidad pero no elimina por completo el riesgo de accesos concurrentes no coordinados sobre el estado interno.
+
   - **Colecciones** o estructuras **no seguras** en contexto concurrente.
+
+        La clase Snake usa un ArrayDeque para el cuerpo de la serpiente, una estructura que no es thread-safe, y aunque se supone que solo el hilo de la serpiente lo modifica, otras partes del sistema como la interfaz gráfica o el motor del juego pueden acceder a copias del estado mediante métodos como snapshot(), lo que puede generar lecturas inconsistentes si no se coordina con las modificaciones, además cualquier colección compartida dentro de Board sin sincronización explícita se convierte en un punto crítico en un entorno concurrente.
+
   - Ocurrencias de **espera activa** (busy-wait) o de sincronización innecesaria.
+
+        El diseño reduce la espera activa gracias a GameClock, que centraliza el control del tiempo y coordina la pausa y reanudación de las serpientes, sin embargo puede surgir riesgo de espera activa si los hilos consultan repetidamente el estado del juego sin usar mecanismos como wait() y notify(), si el reloj emplea sincronización con monitores y notifica solo en cada tick o cambio de estado la solución es eficiente y evita el busy-waiting, en cambio cualquier bucle que revise constantemente el estado sin bloquear el hilo sería una espera activa innecesaria y debería corregirse para optimizar el uso de CPU.
 
 ### 2) Correcciones mínimas y regiones críticas
 
