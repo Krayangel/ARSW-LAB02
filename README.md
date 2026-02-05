@@ -92,17 +92,9 @@ co.eci.snake
 
 - **Identifica** y documenta en **`el reporte de laboratorio`**:
   - Posibles **condiciones de carrera**.
-
-        Existen posibles condiciones de carrera en el acceso a estructuras compartidas como el tablero (Board) y el estado interno de cada serpiente (Snake), aunque cada serpiente es gestionada por su propio hilo estas pueden interactuar con recursos comunes, por ejemplo al consultar límites del tablero, posiciones ocupadas o al momento de renderizar el estado en la interfaz gráfica, además en la clase Snake el cuerpo no está protegido explícitamente por sincronización lo que puede generar inconsistencias si es leído por la UI o por otra parte del sistema mientras el hilo de la serpiente lo está modificando, el uso de volatile en la dirección mitiga parcialmente problemas de visibilidad pero no elimina por completo el riesgo de accesos concurrentes no coordinados sobre el estado interno.
-
   - **Colecciones** o estructuras **no seguras** en contexto concurrente.
-
-        La clase Snake usa un ArrayDeque para el cuerpo de la serpiente, una estructura que no es thread-safe, y aunque se supone que solo el hilo de la serpiente lo modifica, otras partes del sistema como la interfaz gráfica o el motor del juego pueden acceder a copias del estado mediante métodos como snapshot(), lo que puede generar lecturas inconsistentes si no se coordina con las modificaciones, además cualquier colección compartida dentro de Board sin sincronización explícita se convierte en un punto crítico en un entorno concurrente.
-
   - Ocurrencias de **espera activa** (busy-wait) o de sincronización innecesaria.
-
-        El diseño reduce la espera activa gracias a GameClock, que centraliza el control del tiempo y coordina la pausa y reanudación de las serpientes, sin embargo puede surgir riesgo de espera activa si los hilos consultan repetidamente el estado del juego sin usar mecanismos como wait() y notify(), si el reloj emplea sincronización con monitores y notifica solo en cada tick o cambio de estado la solución es eficiente y evita el busy-waiting, en cambio cualquier bucle que revise constantemente el estado sin bloquear el hilo sería una espera activa innecesaria y debería corregirse para optimizar el uso de CPU.
-
+  
 ### 2) Correcciones mínimas y regiones críticas
 
 - **Elimina** esperas activas reemplazándolas por **señales** / **estados** o mecanismos de la librería de concurrencia.
@@ -163,7 +155,6 @@ co.eci.snake
 ```bash
 mvn clean verify
 ```
-
 Incluye compilación y ejecución de pruebas JUnit. Si tienes análisis estático, ejecútalo en `verify` o `site` según tu `pom.xml`.
 
 ---

@@ -20,11 +20,11 @@ public final class SnakeRunner implements Runnable {
     private final AtomicBoolean isDead = new AtomicBoolean(false);
     private volatile boolean waitingForPause = false;
 
-    public SnakeRunner(Snake snake, Board board, 
-                      java.util.function.Supplier<Boolean> isPausedSupplier,
-                      Object pauseLock,
-                      Runnable onDeathCallback,
-                      Runnable onLengthUpdateCallback) {
+    public SnakeRunner(Snake snake, Board board,
+            java.util.function.Supplier<Boolean> isPausedSupplier,
+            Object pauseLock,
+            Runnable onDeathCallback,
+            Runnable onLengthUpdateCallback) {
         this.snake = snake;
         this.board = board;
         this.isPausedSupplier = isPausedSupplier;
@@ -42,22 +42,22 @@ public final class SnakeRunner implements Runnable {
                     waitingForPause = true;
                     synchronized (pauseLock) {
                         while (isPausedSupplier.get()) {
-                            pauseLock.wait(50); // Espera corta para ser responsivo
+                            pauseLock.wait();
                         }
                     }
                     waitingForPause = false;
                     continue; // Revisar condiciones después de pausa
                 }
-                
+
                 // Solo mover si no está pausado
                 maybeTurn();
-                
+
                 // Mover la serpiente
                 var res = board.step(snake);
-                
+
                 // Actualizar longitud máxima
                 onLengthUpdateCallback.run();
-                
+
                 // Manejar resultado del movimiento
                 if (res == Board.MoveResult.HIT_OBSTACLE) {
                     // Registrar muerte
@@ -68,11 +68,12 @@ public final class SnakeRunner implements Runnable {
                 } else if (res == Board.MoveResult.ATE_TURBO) {
                     turboTicks = 100;
                 }
-                
+
                 // Calcular tiempo de espera (igual que el original)
                 int sleep = (turboTicks > 0) ? turboSleepMs : baseSleepMs;
-                if (turboTicks > 0) turboTicks--;
-                
+                if (turboTicks > 0)
+                    turboTicks--;
+
                 // Pequeña pausa entre movimientos
                 Thread.sleep(sleep);
             }
@@ -83,24 +84,27 @@ public final class SnakeRunner implements Runnable {
 
     private void maybeTurn() {
         // Verificar pausa rápidamente
-        if (isPausedSupplier.get()) return;
-        
+        if (isPausedSupplier.get())
+            return;
+
         double p = (turboTicks > 0) ? 0.05 : 0.10;
-        if (ThreadLocalRandom.current().nextDouble() < p) randomTurn();
+        if (ThreadLocalRandom.current().nextDouble() < p)
+            randomTurn();
     }
 
     private void randomTurn() {
         // Verificar pausa rápidamente
-        if (isPausedSupplier.get()) return;
-        
+        if (isPausedSupplier.get())
+            return;
+
         var dirs = Direction.values();
         snake.turn(dirs[ThreadLocalRandom.current().nextInt(dirs.length)]);
     }
-    
+
     public boolean isDead() {
         return isDead.get();
     }
-    
+
     public boolean isWaitingForPause() {
         return waitingForPause;
     }
