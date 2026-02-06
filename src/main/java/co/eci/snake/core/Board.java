@@ -1,9 +1,9 @@
 package co.eci.snake.core;
 
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class Board {
@@ -59,38 +59,43 @@ public final class Board {
 
   public MoveResult step(Snake snake) {
     Objects.requireNonNull(snake, "snake");
-    var head = snake.head();
-    var dir = snake.direction();
-    Position next = new Position(head.x() + dir.dx, head.y() + dir.dy).wrap(width, height);
+    
+    // Sincronizar acceso compartido a las colecciones
+    synchronized (this) {
+        var head = snake.head();
+        var dir = snake.direction();
+        Position next = new Position(head.x() + dir.dx, head.y() + dir.dy).wrap(width, height);
 
-    if (obstacles.contains(next))
-      return MoveResult.HIT_OBSTACLE;
+        if (obstacles.contains(next))
+            return MoveResult.HIT_OBSTACLE;
 
-    boolean teleported = false;
-    if (teleports.containsKey(next)) {
-      next = teleports.get(next);
-      teleported = true;
+        boolean teleported = false;
+        if (teleports.containsKey(next)) {
+            next = teleports.get(next);
+            teleported = true;
+        }
+
+        boolean ateMouse = mice.remove(next);
+        boolean ateTurbo = turbo.remove(next);
+
+        // Mover serpiente fuera del synchronized
+        snake.advance(next, ateMouse);
+
+        if (ateMouse) {
+            mice.add(randomEmpty());
+            obstacles.add(randomEmpty());
+            if (ThreadLocalRandom.current().nextDouble() < 0.2)
+                turbo.add(randomEmpty());
+        }
+
+        if (ateTurbo)
+            return MoveResult.ATE_TURBO;
+        if (ateMouse)
+            return MoveResult.ATE_MOUSE;
+        if (teleported)
+            return MoveResult.TELEPORTED;
+        return MoveResult.MOVED;
     }
-
-    boolean ateMouse = mice.remove(next);
-    boolean ateTurbo = turbo.remove(next);
-
-    snake.advance(next, ateMouse);
-
-    if (ateMouse) {
-      mice.add(randomEmpty());
-      obstacles.add(randomEmpty());
-      if (ThreadLocalRandom.current().nextDouble() < 0.2)
-        turbo.add(randomEmpty());
-    }
-
-    if (ateTurbo)
-      return MoveResult.ATE_TURBO;
-    if (ateMouse)
-      return MoveResult.ATE_MOUSE;
-    if (teleported)
-      return MoveResult.TELEPORTED;
-    return MoveResult.MOVED;
   }
 
   private void createTeleportPairs(int pairs) {
@@ -106,12 +111,28 @@ public final class Board {
     var rnd = ThreadLocalRandom.current();
     Position p;
     int guard = 0;
+    // Aumentar intentos para N alto
+    int maxAttempts = width * height * 3; 
+    
     do {
-      p = new Position(rnd.nextInt(width), rnd.nextInt(height));
-      guard++;
-      if (guard > width * height * 2)
-        break;
+        p = new Position(rnd.nextInt(width), rnd.nextInt(height));
+        guard++;
+        if (guard > maxAttempts) {
+            // Si no encuentra posición vacía, buscar la primera disponible
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y < height; y++) {
+                    Position candidate = new Position(x, y);
+                    if (!mice.contains(candidate) && !obstacles.contains(candidate) && 
+                        !turbo.contains(candidate) && !teleports.containsKey(candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+            // Si todo está ocupado, devolver cualquier posición
+            return new Position(rnd.nextInt(width), rnd.nextInt(height));
+        }
     } while (mice.contains(p) || obstacles.contains(p) || turbo.contains(p) || teleports.containsKey(p));
     return p;
   }
+  
 }

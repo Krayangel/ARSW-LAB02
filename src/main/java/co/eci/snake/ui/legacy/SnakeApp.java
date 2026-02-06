@@ -12,6 +12,7 @@ import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,9 +45,8 @@ public final class SnakeApp extends JFrame {
     private final JLabel statusLabel;
     private final JLabel clockLabel;
     private final GameClock clock;
-    private final java.util.List<Snake> snakes = new java.util.ArrayList<>();
-    private final ExecutorService snakeExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    private final java.util.List<SnakeRunner> runners = new java.util.ArrayList<>();
+    private final CopyOnWriteArrayList<Snake> snakes = new CopyOnWriteArrayList<>();    private final ExecutorService snakeExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final CopyOnWriteArrayList<SnakeRunner> runners = new CopyOnWriteArrayList<>();
     private final Map<Snake, AtomicInteger> deathOrder = new ConcurrentHashMap<>();
     private final Map<Snake, Integer> snakeMaxLengths = new ConcurrentHashMap<>();
     private int nextDeathIndex = 1;
@@ -362,6 +362,9 @@ public final class SnakeApp extends JFrame {
             return "Game Running";
         }
 
+        // Usar copia para evitar ConcurrentModificationException
+        var snakesCopy = new java.util.ArrayList<>(snakes);
+
         // Encontrar la serpiente viva más larga
         Snake longestLiveSnake = null;
         int maxLiveLength = 0;
@@ -370,22 +373,26 @@ public final class SnakeApp extends JFrame {
         Snake worstSnake = null;
         int minDeathOrder = Integer.MAX_VALUE;
 
-        for (Snake snake : snakes) {
-            int deathOrderValue = deathOrder.get(snake).get();
+         for (Snake snake : snakesCopy) {  // Iterar sobre copia
+        int deathOrderValue = deathOrder.get(snake).get();
 
-            if (deathOrderValue == 0) { // Serpiente viva
-                int currentLength = snake.snapshot().size();
-                if (currentLength > maxLiveLength) {
-                    maxLiveLength = currentLength;
-                    longestLiveSnake = snake;
-                }
-            } else { // Serpiente muerta
-                if (deathOrderValue < minDeathOrder) {
-                    minDeathOrder = deathOrderValue;
-                    worstSnake = snake;
-                }
+        if (deathOrderValue == 0) { // Serpiente viva
+            // Sincronizar acceso a snapshot
+            int currentLength;
+            synchronized (snake) {
+                currentLength = snake.snapshot().size();
+            }
+            if (currentLength > maxLiveLength) {
+                maxLiveLength = currentLength;
+                longestLiveSnake = snake;
+            }
+        } else { // Serpiente muerta
+            if (deathOrderValue < minDeathOrder) {
+                minDeathOrder = deathOrderValue;
+                worstSnake = snake;
             }
         }
+    }
 
         StringBuilder sb = new StringBuilder();
         sb.append("<html><center><b>GAME PAUSED</b><br>");
